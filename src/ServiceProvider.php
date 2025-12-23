@@ -15,14 +15,28 @@ class ServiceProvider extends AddonServiceProvider
         'publicDirectory' => 'resources/dist',
     ];
 
+    public function register() {
+        parent::register();
+
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/statamic/daugt-access.php',
+            'statamic.daugt-access'
+        );
+
+        $this->registerServices();
+
+    }
+
     public function boot() {
         parent::boot();
-        $this->registerServices();
     }
+
     public function bootAddon()
     {
         parent::bootAddon();
-        $this->mergeConfigFrom(__DIR__.'/../config/access.php', 'statamic.daugt-access');
+        $this->publishes([
+            __DIR__ . '/../config/statamic/daugt-access.php' => config_path('statamic/daugt-access.php'),
+        ], 'daugt-access-config');
     }
 
     private function registerServices(): void {
