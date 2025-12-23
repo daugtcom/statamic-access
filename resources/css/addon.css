@@ -1,0 +1,6 @@
+/*
+TODO: Revert back to statamic tailwind config for release (less CSS shipped)
+@import "@statamic/cms/tailwind.css";
+ */
+
+@import "tailwindcss";
