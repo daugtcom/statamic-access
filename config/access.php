@@ -16,5 +16,9 @@ return [
             'target' => 'target',
             'validity' => 'validity',
         ],
+    ],
+    'members' => [
+        'group' => 'members',
+        'role' => 'member'
     ]
 ];

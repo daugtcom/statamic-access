@@ -3,12 +3,14 @@
 namespace Daugt\Access\Commands;
 
 use Daugt\Access\Blueprints\EntitlementBlueprint;
+use Daugt\Access\Blueprints\EntitlementCollection;
 use Daugt\Access\Console\AsciiArt;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Statamic\Console\RunsInPlease;
 use Statamic\Facades\Blueprint;
-use Statamic\Facades\Collection;
+use Statamic\Facades\Role;
+use Statamic\Facades\UserGroup;
 
 class InstallCommand extends Command {
     use RunsInPlease;
@@ -17,25 +19,38 @@ class InstallCommand extends Command {
 
     protected $description = 'Installs Access Addon.';
 
-    public function handle(EntitlementBlueprint $entitlementBlueprint): void
+    public function handle(EntitlementBlueprint $entitlementBlueprint, EntitlementCollection $entitlementCollection): void
     {
         $this->output->write((new AsciiArt())());
 
-        $this->createBlueprints($entitlementBlueprint);
+        $this->createBlueprints($entitlementCollection, $entitlementBlueprint);
+        $this->createUserGroups();
     }
 
 
-    public function createBlueprints(EntitlementBlueprint $entitlementBlueprint): self {
-        $collectionName = config('statamic.daugt-access.entitlements.collection');
-        $collection = Collection::make($collectionName);
-        $collection->save();
+    private function createBlueprints(EntitlementCollection $entitlementCollection, EntitlementBlueprint $entitlementBlueprint): self {
+        $collection = $entitlementCollection();
 
         $blueprint = $entitlementBlueprint();
-        $blueprint->setHandle(sprintf('collections/%s/%s', $collectionName, Str::singular($collectionName)));
+        $blueprint->setHandle(sprintf('collections/%s/%s', $collection->handle(), Str::singular($collection->handle())));
 
         Blueprint::save($blueprint);
 
         $this->info("Blueprints created!");
+
+        return $this;
+    }
+
+    private function createUserGroups(): self {
+        $role = Role::make();
+        $role->handle(config('statamic.daugt-access.members.role'));
+        $role->addPermission('access cp');
+        $role->save();
+
+        $group = UserGroup::make();
+        $group->roles([$role->handle()]);
+        $group->handle(config('statamic.daugt-access.members.group'));
+        $group->save();
 
         return $this;
     }
