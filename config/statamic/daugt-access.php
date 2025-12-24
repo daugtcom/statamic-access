@@ -15,6 +15,7 @@ return [
             'user' => 'user',
             'target' => 'target',
             'validity' => 'validity',
+            'keep_unlocked_after_expiry' => 'keepUnlockedAfterExpiry',
         ],
     ],
     'members' => [
