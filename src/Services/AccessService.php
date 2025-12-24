@@ -3,6 +3,8 @@
 namespace Daugt\Access\Services;
 
 use Carbon\Carbon;
+use Daugt\Access\Events\EntitlementGranted;
+use Daugt\Access\Events\EntitlementRevoked;
 use Illuminate\Support\Arr;
 use Statamic\Contracts\Auth\User as StatamicUser;
 use Statamic\Contracts\Entries\Entry as EntryContract;
@@ -96,9 +98,113 @@ final class AccessService
             ->all();
     }
 
+    public function grantEntitlement(
+        StatamicUser|string $user,
+        EntryContract|string $target,
+        ?\DateTimeInterface $start = null,
+        ?\DateTimeInterface $end = null,
+        bool $keepUnlockedAfterExpiry = false,
+        bool $published = true,
+        ?string $id = null
+    ): EntryContract {
+        $this->ensureEntitlementsCollectionExists();
+
+        $userId = $this->resolveUserId($user);
+        $targetId = $target instanceof EntryContract ? (string) $target->id() : (string) $target;
+
+        $data = [
+            $this->userField => $userId,
+            $this->targetField => $targetId,
+        ];
+
+        if ($start || $end) {
+            $data[$this->validityField] = array_filter([
+                'start' => $start ? Carbon::instance($start)->toDateTimeString() : null,
+                'end' => $end ? Carbon::instance($end)->toDateTimeString() : null,
+            ]);
+        }
+
+        if ($keepField = $this->keepUnlockedAfterExpiryField()) {
+            $data[$keepField] = $keepUnlockedAfterExpiry;
+        }
+
+        $entitlement = Entry::make();
+        $entitlement->collection($this->entitlementsCollection);
+        $entitlement->data($data);
+        $entitlement->published($published);
+
+        if ($id) {
+            $entitlement->id($id);
+        }
+
+        $entitlement->save();
+
+        EntitlementGranted::dispatch($entitlement);
+
+        return $entitlement;
+    }
+
+    public function revokeEntitlement(EntryContract|string $entitlement): bool
+    {
+        $entry = $entitlement instanceof EntryContract ? $entitlement : Entry::find($entitlement);
+
+        if (!$entry || $entry->collectionHandle() !== $this->entitlementsCollection) {
+            return false;
+        }
+
+        $entry->delete();
+        EntitlementRevoked::dispatch($entry);
+
+        return true;
+    }
+
+    public function revokeEntitlementsForUserTarget(StatamicUser|string $user, EntryContract|string $target): int
+    {
+        if (!$this->entitlementsCollectionExists()) {
+            return 0;
+        }
+
+        $userId = $this->resolveUserId($user);
+        $targetId = $target instanceof EntryContract ? (string) $target->id() : (string) $target;
+
+        $entitlements = Entry::query()
+            ->where('collection', $this->entitlementsCollection)
+            ->where($this->userField, $userId)
+            ->where($this->targetField, $targetId)
+            ->get();
+
+        $entitlements->each(function (EntryContract $entitlement) {
+            $entitlement->delete();
+            EntitlementRevoked::dispatch($entitlement);
+        });
+
+        return $entitlements->count();
+    }
+
     private function entitlementsCollectionExists(): bool
     {
         return StatamicCollection::find($this->entitlementsCollection) !== null;
+    }
+
+    private function ensureEntitlementsCollectionExists(): void
+    {
+        if ($this->entitlementsCollectionExists()) {
+            return;
+        }
+
+        throw new \RuntimeException(sprintf(
+            'Entitlements collection [%s] does not exist. Run the install command or create the collection.',
+            $this->entitlementsCollection
+        ));
+    }
+
+    private function resolveUserId(StatamicUser|string $user): string
+    {
+        if ($user instanceof StatamicUser) {
+            return (string) $user->id();
+        }
+
+        return (string) $user;
     }
 
     private function resolveTargetEntry(EntryContract|string $target): ?EntryContract
@@ -163,10 +269,7 @@ final class AccessService
 
     private function shouldKeepUnlockedAfterExpiry(EntryContract $entitlement): bool
     {
-        $field = config(
-            'statamic.daugt-access.entitlements.fields.keep_unlocked_after_expiry',
-            'keepUnlockedAfterExpiry'
-        );
+        $field = $this->keepUnlockedAfterExpiryField();
 
         if (!$field) {
             return false;
@@ -188,5 +291,15 @@ final class AccessService
         }
 
         return (bool) $value;
+    }
+
+    private function keepUnlockedAfterExpiryField(): ?string
+    {
+        $field = config(
+            'statamic.daugt-access.entitlements.fields.keep_unlocked_after_expiry',
+            'keepUnlockedAfterExpiry'
+        );
+
+        return $field ? (string) $field : null;
     }
 }
