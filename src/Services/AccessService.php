@@ -3,6 +3,7 @@
 namespace Daugt\Access\Services;
 
 use Carbon\Carbon;
+use Daugt\Access\Entries\EntitlementEntry;
 use Daugt\Access\Events\EntitlementGranted;
 use Daugt\Access\Events\EntitlementRevoked;
 use Illuminate\Support\Arr;
@@ -13,13 +14,6 @@ use Statamic\Facades\Entry;
 
 final class AccessService
 {
-    public function __construct(
-        private readonly string $entitlementsCollection = 'entitlements',
-        private readonly string $userField = 'user',
-        private readonly string $targetField = 'target',
-        private readonly string $validityField = 'validity',
-    ) {}
-
     public function canAccess(?StatamicUser $user, EntryContract|string $target, ?\DateTimeInterface $at = null): bool
     {
         if (!$user) return false;
@@ -33,15 +27,15 @@ final class AccessService
         $targetId = (string) $targetEntry->id();
 
         return Entry::query()
-            ->where('collection', $this->entitlementsCollection)
+            ->where('collection', EntitlementEntry::COLLECTION)
             ->whereStatus('published')
-            ->where($this->userField, $userId)
-            ->where($this->targetField, $targetId)
+            ->where(EntitlementEntry::USER, $userId)
+            ->where(EntitlementEntry::TARGET, $targetId)
             ->get()
-            ->contains(fn ($entitlement) => $this->isValidAt(
-                $entitlement->get($this->validityField),
+            ->contains(fn (EntitlementEntry $entitlement) => $this->isValidAt(
+                $entitlement->validity(),
                 $at,
-                $this->shouldKeepUnlockedAfterExpiry($entitlement)
+                $entitlement->keepUnlockedAfterExpiry()
             ));
     }
 
@@ -63,16 +57,16 @@ final class AccessService
         $userId = (string) $user->id();
 
         $targetIds = Entry::query()
-            ->where('collection', $this->entitlementsCollection)
+            ->where('collection', EntitlementEntry::COLLECTION)
             ->whereStatus('published')
-            ->where($this->userField, $userId)
+            ->where(EntitlementEntry::USER, $userId)
             ->get()
-            ->filter(fn ($entitlement) => $this->isValidAt(
-                $entitlement->get($this->validityField),
+            ->filter(fn (EntitlementEntry $entitlement) => $this->isValidAt(
+                $entitlement->validity(),
                 $at,
-                $this->shouldKeepUnlockedAfterExpiry($entitlement)
+                $entitlement->keepUnlockedAfterExpiry()
             ))
-            ->map(fn ($entitlement) => $entitlement->get($this->targetField))
+            ->map(fn (EntitlementEntry $entitlement) => $entitlement->get(EntitlementEntry::TARGET))
             ->filter() // remove null/empty
             ->map(fn ($id) => (string) $id)
             ->unique()
@@ -113,23 +107,20 @@ final class AccessService
         $targetId = $target instanceof EntryContract ? (string) $target->id() : (string) $target;
 
         $data = [
-            $this->userField => $userId,
-            $this->targetField => $targetId,
+            EntitlementEntry::USER => $userId,
+            EntitlementEntry::TARGET => $targetId,
         ];
 
         if ($start || $end) {
-            $data[$this->validityField] = array_filter([
+            $data[EntitlementEntry::VALIDITY] = array_filter([
                 'start' => $start ? Carbon::instance($start)->toDateTimeString() : null,
                 'end' => $end ? Carbon::instance($end)->toDateTimeString() : null,
             ]);
         }
 
-        if ($keepField = $this->keepUnlockedAfterExpiryField()) {
-            $data[$keepField] = $keepUnlockedAfterExpiry;
-        }
+        $data[EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY] = $keepUnlockedAfterExpiry;
 
-        $entitlement = Entry::make();
-        $entitlement->collection($this->entitlementsCollection);
+        $entitlement = Entry::make()->collection(EntitlementEntry::COLLECTION);
         $entitlement->data($data);
         $entitlement->published($published);
 
@@ -148,7 +139,7 @@ final class AccessService
     {
         $entry = $entitlement instanceof EntryContract ? $entitlement : Entry::find($entitlement);
 
-        if (!$entry || $entry->collectionHandle() !== $this->entitlementsCollection) {
+        if (!$entry || $entry->collectionHandle() !== EntitlementEntry::COLLECTION) {
             return false;
         }
 
@@ -168,9 +159,9 @@ final class AccessService
         $targetId = $target instanceof EntryContract ? (string) $target->id() : (string) $target;
 
         $entitlements = Entry::query()
-            ->where('collection', $this->entitlementsCollection)
-            ->where($this->userField, $userId)
-            ->where($this->targetField, $targetId)
+            ->where('collection', EntitlementEntry::COLLECTION)
+            ->where(EntitlementEntry::USER, $userId)
+            ->where(EntitlementEntry::TARGET, $targetId)
             ->get();
 
         $entitlements->each(function (EntryContract $entitlement) {
@@ -183,7 +174,7 @@ final class AccessService
 
     private function entitlementsCollectionExists(): bool
     {
-        return StatamicCollection::find($this->entitlementsCollection) !== null;
+        return StatamicCollection::find(EntitlementEntry::COLLECTION) !== null;
     }
 
     private function ensureEntitlementsCollectionExists(): void
@@ -194,7 +185,7 @@ final class AccessService
 
         throw new \RuntimeException(sprintf(
             'Entitlements collection [%s] does not exist. Run the install command or create the collection.',
-            $this->entitlementsCollection
+            EntitlementEntry::COLLECTION
         ));
     }
 
@@ -267,39 +258,4 @@ final class AccessService
         return null;
     }
 
-    private function shouldKeepUnlockedAfterExpiry(EntryContract $entitlement): bool
-    {
-        $field = $this->keepUnlockedAfterExpiryField();
-
-        if (!$field) {
-            return false;
-        }
-
-        $value = $entitlement->get($field);
-
-        if (is_bool($value)) return $value;
-
-        if (is_int($value) || is_float($value)) {
-            return (bool) $value;
-        }
-
-        if (is_string($value)) {
-            $parsed = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if ($parsed !== null) {
-                return $parsed;
-            }
-        }
-
-        return (bool) $value;
-    }
-
-    private function keepUnlockedAfterExpiryField(): ?string
-    {
-        $field = config(
-            'statamic.daugt-access.entitlements.fields.keep_unlocked_after_expiry',
-            'keepUnlockedAfterExpiry'
-        );
-
-        return $field ? (string) $field : null;
-    }
 }

@@ -2,6 +2,7 @@
 
 namespace Daugt\Access\Tests;
 
+use Daugt\Access\Entries\EntitlementEntry;
 use Daugt\Access\Services\AccessService;
 use Illuminate\Support\Str;
 use Statamic\Contracts\Auth\User as StatamicUser;
@@ -14,7 +15,7 @@ class AccessServiceTest extends TestCase
 {
     public function test_can_access_returns_true_for_published_entitlement_and_target(): void
     {
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
 
         $user = $this->makeUser('user-1');
@@ -36,7 +37,7 @@ class AccessServiceTest extends TestCase
 
     public function test_can_access_returns_false_for_missing_or_invalid_entitlements(): void
     {
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
 
         $user = $this->makeUser('user-2');
@@ -59,7 +60,7 @@ class AccessServiceTest extends TestCase
 
     public function test_can_access_allows_keep_unlocked_after_expiry(): void
     {
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
 
         $user = $this->makeUser('user-keep-1');
@@ -77,7 +78,7 @@ class AccessServiceTest extends TestCase
 
     public function test_can_access_denies_keep_unlocked_before_start(): void
     {
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
 
         $user = $this->makeUser('user-keep-2');
@@ -95,7 +96,7 @@ class AccessServiceTest extends TestCase
 
     public function test_can_access_returns_false_when_target_unpublished(): void
     {
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
 
         $user = $this->makeUser('user-3');
@@ -110,7 +111,7 @@ class AccessServiceTest extends TestCase
 
     public function test_accessible_targets_returns_only_published_valid_targets_and_respects_filter(): void
     {
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('alpha');
         $this->makeCollection('beta');
 
@@ -166,7 +167,13 @@ class AccessServiceTest extends TestCase
             return;
         }
 
-        StatamicCollection::make($handle)->save();
+        $collection = StatamicCollection::make($handle);
+
+        if ($handle === EntitlementEntry::COLLECTION) {
+            $collection->entryClass(EntitlementEntry::class);
+        }
+
+        $collection->save();
     }
 
     private function makeUser(string $id): StatamicUser
@@ -184,8 +191,7 @@ class AccessServiceTest extends TestCase
     {
         $this->makeCollection($collection);
 
-        $entry = Entry::make();
-        $entry->collection($collection);
+        $entry = Entry::make()->collection($collection);
         $entry->id($id);
         $entry->slug(Str::slug($id));
         $entry->data(['title' => Str::title(str_replace('-', ' ', $id))]);
@@ -204,20 +210,19 @@ class AccessServiceTest extends TestCase
         ?bool $keepUnlockedAfterExpiry = null
     ): EntryContract {
         $data = [
-            'user' => $userId,
-            'target' => $targetId,
+            EntitlementEntry::USER => $userId,
+            EntitlementEntry::TARGET => $targetId,
         ];
 
         if ($validity !== null) {
-            $data['validity'] = $validity;
+            $data[EntitlementEntry::VALIDITY] = $validity;
         }
 
         if ($keepUnlockedAfterExpiry !== null) {
-            $data[$this->keepUnlockedAfterExpiryField()] = $keepUnlockedAfterExpiry;
+            $data[EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY] = $keepUnlockedAfterExpiry;
         }
 
-        $entry = Entry::make();
-        $entry->collection('entitlements');
+        $entry = Entry::make()->collection(EntitlementEntry::COLLECTION);
         $entry->id($id);
         $entry->slug(Str::slug($id));
         $entry->data($data);
@@ -225,13 +230,5 @@ class AccessServiceTest extends TestCase
         $entry->save();
 
         return $entry;
-    }
-
-    private function keepUnlockedAfterExpiryField(): string
-    {
-        return config(
-            'statamic.daugt-access.entitlements.fields.keep_unlocked_after_expiry',
-            'keepUnlockedAfterExpiry'
-        );
     }
 }

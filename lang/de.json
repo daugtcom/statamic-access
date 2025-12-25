@@ -1,0 +1,9 @@
+{
+  "daugt-access::entitlements.name": "Freischaltungen",
+  "daugt-access::entitlements.target": "Ziel",
+  "daugt-access::entitlements.user": "Nutzer",
+  "daugt-access::entitlements.validity": "Gültigkeit",
+  "daugt-access::entitlements.keep_unlocked_after_expiry": "Entsperrt halten nach Ablauf",
+  "daugt-access::members.role": "Mitglied",
+  "daugt-access::members.group": "Mitglieder"
+}

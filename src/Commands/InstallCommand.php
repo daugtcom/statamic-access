@@ -5,10 +5,12 @@ namespace Daugt\Access\Commands;
 use Daugt\Access\Blueprints\EntitlementBlueprint;
 use Daugt\Access\Blueprints\EntitlementCollection;
 use Daugt\Access\Console\AsciiArt;
+use Daugt\Access\Entries\EntitlementEntry;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Statamic\Console\RunsInPlease;
 use Statamic\Facades\Blueprint;
+use Statamic\Facades\Collection as CollectionFacade;
 use Statamic\Facades\Role;
 use Statamic\Facades\UserGroup;
 
@@ -30,6 +32,7 @@ class InstallCommand extends Command {
 
     private function createBlueprints(EntitlementCollection $entitlementCollection, EntitlementBlueprint $entitlementBlueprint): self {
         $collection = $entitlementCollection();
+        $collection->save();
 
         $blueprint = $entitlementBlueprint();
         $blueprint->setHandle(sprintf('collections/%s/%s', $collection->handle(), Str::singular($collection->handle())));
@@ -43,13 +46,15 @@ class InstallCommand extends Command {
 
     private function createUserGroups(): self {
         $role = Role::make();
-        $role->handle(config('statamic.daugt-access.members.role'));
+        $role->handle('member');
+        $role->title(__('daugt-access::members.role'));
         $role->addPermission('access cp');
         $role->save();
 
         $group = UserGroup::make();
         $group->roles([$role->handle()]);
-        $group->handle(config('statamic.daugt-access.members.group'));
+        $group->handle('members');
+        $group->title(__('daugt-access::members.group'));
         $group->save();
 
         return $this;

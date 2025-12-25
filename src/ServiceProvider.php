@@ -34,21 +34,13 @@ class ServiceProvider extends AddonServiceProvider
     public function bootAddon()
     {
         parent::bootAddon();
+        $this->loadJsonTranslationsFrom(__DIR__ . '/../lang');
         $this->publishes([
             __DIR__ . '/../config/statamic/daugt-access.php' => config_path('statamic/daugt-access.php'),
         ], 'daugt-access-config');
     }
 
     private function registerServices(): void {
-        $this->app->singleton(AccessService::class, function () {
-            $cfg = config('daugt_access.entitlements');
-
-            return new AccessService(
-                entitlementsCollection: $cfg['collection'],
-                userField: $cfg['fields']['user'],
-                targetField: $cfg['fields']['target'],
-                validityField: $cfg['fields']['validity'],
-            );
-        });
+        $this->app->singleton(AccessService::class, fn () => new AccessService());
     }
 }

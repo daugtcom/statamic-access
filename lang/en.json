@@ -1,0 +1,9 @@
+{
+  "daugt-access::entitlements.name": "Entitlement",
+  "daugt-access::entitlements.target": "Target",
+  "daugt-access::entitlements.user": "User",
+  "daugt-access::entitlements.validity": "Validity",
+  "daugt-access::entitlements.keep_unlocked_after_expiry": "Keep unlocked after expiry",
+  "daugt-access::members.role": "Member",
+  "daugt-access::members.group": "Members"
+}

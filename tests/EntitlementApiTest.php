@@ -2,6 +2,7 @@
 
 namespace Daugt\Access\Tests;
 
+use Daugt\Access\Entries\EntitlementEntry;
 use Daugt\Access\Events\EntitlementGranted;
 use Daugt\Access\Events\EntitlementRevoked;
 use Daugt\Access\Services\AccessService;
@@ -19,7 +20,7 @@ class EntitlementApiTest extends TestCase
     {
         Event::fake([EntitlementGranted::class]);
 
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
 
         $user = $this->makeUser('api-user-1');
@@ -38,13 +39,13 @@ class EntitlementApiTest extends TestCase
             true
         );
 
-        $this->assertSame('entitlements', $entitlement->collectionHandle());
-        $this->assertSame($user->id(), $entitlement->get('user'));
-        $this->assertSame($target->id(), $entitlement->get('target'));
-        $this->assertTrue((bool) $entitlement->get($this->keepUnlockedAfterExpiryField()));
+        $this->assertSame(EntitlementEntry::COLLECTION, $entitlement->collectionHandle());
+        $this->assertSame($user->id(), $entitlement->get(EntitlementEntry::USER));
+        $this->assertSame($target->id(), $entitlement->get(EntitlementEntry::TARGET));
+        $this->assertTrue((bool) $entitlement->get(EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY));
         $this->assertTrue($entitlement->published());
 
-        $range = $entitlement->get('validity');
+        $range = $entitlement->get(EntitlementEntry::VALIDITY);
         $this->assertIsArray($range);
         $this->assertSame($start->toDateTimeString(), $range['start'] ?? null);
         $this->assertSame($end->toDateTimeString(), $range['end'] ?? null);
@@ -58,7 +59,7 @@ class EntitlementApiTest extends TestCase
     {
         Event::fake([EntitlementRevoked::class]);
 
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
 
         $user = $this->makeUser('api-user-2');
@@ -81,7 +82,7 @@ class EntitlementApiTest extends TestCase
     {
         Event::fake([EntitlementRevoked::class]);
 
-        $this->makeCollection('entitlements');
+        $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
 
         $user = $this->makeUser('api-user-2');
@@ -108,7 +109,13 @@ class EntitlementApiTest extends TestCase
             return;
         }
 
-        StatamicCollection::make($handle)->save();
+        $collection = StatamicCollection::make($handle);
+
+        if ($handle === EntitlementEntry::COLLECTION) {
+            $collection->entryClass(EntitlementEntry::class);
+        }
+
+        $collection->save();
     }
 
     private function makeUser(string $id): StatamicUser
@@ -126,8 +133,7 @@ class EntitlementApiTest extends TestCase
     {
         $this->makeCollection($collection);
 
-        $entry = Entry::make();
-        $entry->collection($collection);
+        $entry = Entry::make()->collection($collection);
         $entry->id($id);
         $entry->slug(Str::slug($id));
         $entry->data(['title' => Str::title(str_replace('-', ' ', $id))]);
@@ -146,20 +152,19 @@ class EntitlementApiTest extends TestCase
         ?bool $keepUnlockedAfterExpiry = null
     ): EntryContract {
         $data = [
-            'user' => $userId,
-            'target' => $targetId,
+            EntitlementEntry::USER => $userId,
+            EntitlementEntry::TARGET => $targetId,
         ];
 
         if ($validity !== null) {
-            $data['validity'] = $validity;
+            $data[EntitlementEntry::VALIDITY] = $validity;
         }
 
         if ($keepUnlockedAfterExpiry !== null) {
-            $data[$this->keepUnlockedAfterExpiryField()] = $keepUnlockedAfterExpiry;
+            $data[EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY] = $keepUnlockedAfterExpiry;
         }
 
-        $entry = Entry::make();
-        $entry->collection('entitlements');
+        $entry = Entry::make()->collection(EntitlementEntry::COLLECTION);
         $entry->id($id);
         $entry->slug(Str::slug($id));
         $entry->data($data);
@@ -167,13 +172,5 @@ class EntitlementApiTest extends TestCase
         $entry->save();
 
         return $entry;
-    }
-
-    private function keepUnlockedAfterExpiryField(): string
-    {
-        return config(
-            'statamic.daugt-access.entitlements.fields.keep_unlocked_after_expiry',
-            'keepUnlockedAfterExpiry'
-        );
     }
 }
