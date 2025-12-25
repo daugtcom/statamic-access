@@ -1,16 +1,14 @@
 <?php
 
-namespace Daugt\Access\Commands;
+namespace Daugt\Access\Console\Commands;
 
 use Daugt\Access\Blueprints\EntitlementBlueprint;
 use Daugt\Access\Blueprints\EntitlementCollection;
 use Daugt\Access\Console\AsciiArt;
-use Daugt\Access\Entries\EntitlementEntry;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Statamic\Console\RunsInPlease;
 use Statamic\Facades\Blueprint;
-use Statamic\Facades\Collection as CollectionFacade;
 use Statamic\Facades\Role;
 use Statamic\Facades\UserGroup;
 

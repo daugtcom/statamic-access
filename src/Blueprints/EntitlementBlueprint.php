@@ -28,7 +28,7 @@ class EntitlementBlueprint
                 'display' => __('daugt-access::entitlements.validity'),
             ],
             EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY => [
-                'type' => 'boolean',
+                'type' => 'toggle',
                 'default' => false,
                 'display' => __('daugt-access::entitlements.keep_unlocked_after_expiry'),
             ],
