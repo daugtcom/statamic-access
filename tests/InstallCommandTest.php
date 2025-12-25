@@ -59,7 +59,7 @@ class InstallCommandTest extends TestCase
         $this->assertSame('date', $validityField->type());
         $this->assertSame('range', $validityField->get('mode'));
         $this->assertTrue($validityField->get('time_enabled'));
-        $this->assertSame('boolean', $keepField->type());
+        $this->assertSame('toggle', $keepField->type());
 
         $collection = CollectionFacade::find(EntitlementEntry::COLLECTION);
         $this->assertNotNull($collection);
