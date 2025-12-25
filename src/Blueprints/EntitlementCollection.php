@@ -11,6 +11,7 @@ class EntitlementCollection
     public function __invoke(): Collection {
         $collection = CollectionFacade::make(EntitlementEntry::COLLECTION);
         $collection->entryClass(EntitlementEntry::class);
+        $collection->title('daugt-access::entitlements.name');
 
         $collection->titleFormats(
             "{%s:title} - {%s:name} ({%s:start} - {%s:end})",
