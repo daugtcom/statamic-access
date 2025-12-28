@@ -25,16 +25,25 @@ class EntitlementBlueprint
                 'type' => 'date',
                 'time_enabled' => true,
                 'display' => 'daugt-access::entitlements.validity_start',
+                'instructions' => 'daugt-access::entitlements.validity_start_instructions',
             ],
             EntitlementEntry::VALIDITY_END => [
                 'type' => 'date',
                 'time_enabled' => true,
                 'display' => 'daugt-access::entitlements.validity_end',
+                'instructions' => 'daugt-access::entitlements.validity_end_instructions',
             ],
-            EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY => [
+            EntitlementEntry::KEEP_ACCESSIBLE_AFTER_EXPIRY => [
                 'type' => 'toggle',
                 'default' => false,
-                'display' => 'daugt-access::entitlements.keep_unlocked_after_expiry',
+                'display' => 'daugt-access::entitlements.keep_accessible_after_expiry',
+                'instructions' => 'daugt-access::entitlements.keep_accessible_after_expiry_instructions',
+            ],
+            EntitlementEntry::KEEP_UNLOCKED_WHEN_ACTIVE => [
+                'type' => 'toggle',
+                'default' => false,
+                'display' => 'daugt-access::entitlements.keep_unlocked_when_active',
+                'instructions' => 'daugt-access::entitlements.keep_unlocked_when_active_instructions',
             ],
         ]);
     }

@@ -3,8 +3,13 @@
   "daugt-access::entitlements.target": "Ziel",
   "daugt-access::entitlements.user": "Nutzer",
   "daugt-access::entitlements.validity_start": "Gültig ab",
+  "daugt-access::entitlements.validity_start_instructions": "Optional. Zugriff startet zu diesem Datum und dieser Uhrzeit.",
   "daugt-access::entitlements.validity_end": "Gültig bis",
-  "daugt-access::entitlements.keep_unlocked_after_expiry": "Entsperrt halten nach Ablauf",
+  "daugt-access::entitlements.validity_end_instructions": "Optional. Zugriff endet zu diesem Datum und dieser Uhrzeit.",
+  "daugt-access::entitlements.keep_accessible_after_expiry": "Nach Ablauf weiter zugänglich",
+  "daugt-access::entitlements.keep_accessible_after_expiry_instructions": "Hält Zugriff auf Inhalte, die in diesem Zeitraum freigeschaltet wurden, auch nach Ablauf.",
+  "daugt-access::entitlements.keep_unlocked_when_active": "Während aktiv alles freischalten",
+  "daugt-access::entitlements.keep_unlocked_when_active_instructions": "Während der Laufzeit ist der gesamte Inhalt des Ziels freigeschaltet.",
   "daugt-access::members.role": "Mitglied",
   "daugt-access::members.group": "Mitglieder"
 }

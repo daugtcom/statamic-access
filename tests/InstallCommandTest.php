@@ -43,13 +43,15 @@ class InstallCommandTest extends TestCase
         $this->assertTrue($blueprint->hasField(EntitlementEntry::TARGET));
         $this->assertTrue($blueprint->hasField(EntitlementEntry::VALIDITY_START));
         $this->assertTrue($blueprint->hasField(EntitlementEntry::VALIDITY_END));
-        $this->assertTrue($blueprint->hasField(EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY));
+        $this->assertTrue($blueprint->hasField(EntitlementEntry::KEEP_ACCESSIBLE_AFTER_EXPIRY));
+        $this->assertTrue($blueprint->hasField(EntitlementEntry::KEEP_UNLOCKED_WHEN_ACTIVE));
 
         $userField = $blueprint->field(EntitlementEntry::USER);
         $targetField = $blueprint->field(EntitlementEntry::TARGET);
         $validityStartField = $blueprint->field(EntitlementEntry::VALIDITY_START);
         $validityEndField = $blueprint->field(EntitlementEntry::VALIDITY_END);
-        $keepField = $blueprint->field(EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY);
+        $keepAccessibleField = $blueprint->field(EntitlementEntry::KEEP_ACCESSIBLE_AFTER_EXPIRY);
+        $keepUnlockedField = $blueprint->field(EntitlementEntry::KEEP_UNLOCKED_WHEN_ACTIVE);
 
         $this->assertSame('users', $userField->type());
         $this->assertSame(1, $userField->get('max_items'));
@@ -62,7 +64,8 @@ class InstallCommandTest extends TestCase
         $this->assertTrue($validityStartField->get('time_enabled'));
         $this->assertSame('date', $validityEndField->type());
         $this->assertTrue($validityEndField->get('time_enabled'));
-        $this->assertSame('toggle', $keepField->type());
+        $this->assertSame('toggle', $keepAccessibleField->type());
+        $this->assertSame('toggle', $keepUnlockedField->type());
 
         $collection = CollectionFacade::find(EntitlementEntry::COLLECTION);
         $this->assertNotNull($collection);

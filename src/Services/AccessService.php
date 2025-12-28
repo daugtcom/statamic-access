@@ -36,7 +36,7 @@ final class AccessService
                 $entitlement->validityStart(),
                 $entitlement->validityEnd(),
                 $at,
-                $entitlement->keepUnlockedAfterExpiry()
+                $entitlement->keepAccessibleAfterExpiry()
             ));
     }
 
@@ -66,7 +66,7 @@ final class AccessService
                 $entitlement->validityStart(),
                 $entitlement->validityEnd(),
                 $at,
-                $entitlement->keepUnlockedAfterExpiry()
+                $entitlement->keepAccessibleAfterExpiry()
             ))
             ->map(fn (EntitlementEntry $entitlement) => $entitlement->get(EntitlementEntry::TARGET))
             ->filter() // remove null/empty
@@ -94,12 +94,90 @@ final class AccessService
             ->all();
     }
 
+    /**
+     * Return access timeslots for a target entry.
+     *
+     * @return array{unrestricted: bool, slots: array<int, array{start: string|null, end: string|null}>}
+     */
+    public function accessTimeslots(
+        StatamicUser|string $user,
+        EntryContract|string $target,
+        ?\DateTimeInterface $at = null
+    ): array {
+        if (!$this->entitlementsCollectionExists()) {
+            return ['unrestricted' => false, 'slots' => []];
+        }
+
+        $targetEntry = $this->resolveTargetEntry($target);
+        if (!$targetEntry || !$this->isPublishedEntry($targetEntry)) {
+            return ['unrestricted' => false, 'slots' => []];
+        }
+
+        $at = $at ? Carbon::instance($at) : now();
+        $userId = $this->resolveUserId($user);
+        $targetId = (string) $targetEntry->id();
+
+        $entitlements = Entry::query()
+            ->where('collection', EntitlementEntry::COLLECTION)
+            ->whereStatus('published')
+            ->where(EntitlementEntry::USER, $userId)
+            ->where(EntitlementEntry::TARGET, $targetId)
+            ->get();
+
+        $unrestricted = false;
+        $slots = [];
+
+        foreach ($entitlements as $entitlement) {
+            $start = $this->parseDateLike($entitlement->validityStart());
+            $end = $this->parseDateLike($entitlement->validityEnd());
+
+            if (!$start && !$end) {
+                return ['unrestricted' => true, 'slots' => []];
+            }
+
+            if ($entitlement->keepUnlockedWhenActive() && $this->isActiveAt($start, $end, $at)) {
+                $unrestricted = true;
+            }
+
+            if (!$entitlement->keepAccessibleAfterExpiry() && $end && $end->lt($at)) {
+                continue;
+            }
+
+            $slots[] = [
+                'start' => $start ? $start->toIso8601String() : null,
+                'end' => $end ? $end->toIso8601String() : null,
+            ];
+        }
+
+        usort($slots, function (array $left, array $right) {
+            $leftStart = $left['start'];
+            $rightStart = $right['start'];
+
+            if ($leftStart === $rightStart) {
+                return 0;
+            }
+
+            if ($leftStart === null) {
+                return -1;
+            }
+
+            if ($rightStart === null) {
+                return 1;
+            }
+
+            return strcmp($leftStart, $rightStart);
+        });
+
+        return ['unrestricted' => $unrestricted, 'slots' => $slots];
+    }
+
     public function grantEntitlement(
         StatamicUser|string $user,
         EntryContract|string $target,
         ?\DateTimeInterface $start = null,
         ?\DateTimeInterface $end = null,
-        bool $keepUnlockedAfterExpiry = false,
+        bool $keepAccessibleAfterExpiry = false,
+        bool $keepUnlockedWhenActive = false,
         bool $published = true,
         ?string $id = null
     ): EntryContract {
@@ -121,7 +199,8 @@ final class AccessService
             $data[EntitlementEntry::VALIDITY_END] = Carbon::instance($end)->toDateTimeString();
         }
 
-        $data[EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY] = $keepUnlockedAfterExpiry;
+        $data[EntitlementEntry::KEEP_ACCESSIBLE_AFTER_EXPIRY] = $keepAccessibleAfterExpiry;
+        $data[EntitlementEntry::KEEP_UNLOCKED_WHEN_ACTIVE] = $keepUnlockedWhenActive;
 
         $entitlement = Entry::make()->collection(EntitlementEntry::COLLECTION);
         $entitlement->data($data);
@@ -215,7 +294,7 @@ final class AccessService
         mixed $startRaw,
         mixed $endRaw,
         Carbon $at,
-        bool $keepUnlockedAfterExpiry = false
+        bool $keepAccessibleAfterExpiry = false
     ): bool
     {
         if (empty($startRaw) && empty($endRaw)) return true;
@@ -224,7 +303,15 @@ final class AccessService
         $end = $this->parseDateLike($endRaw);
 
         if ($start && $at->lt($start)) return false;
-        if (!$keepUnlockedAfterExpiry && $end && $at->gte($end)) return false;
+        if (!$keepAccessibleAfterExpiry && $end && $at->gte($end)) return false;
+
+        return true;
+    }
+
+    private function isActiveAt(?Carbon $start, ?Carbon $end, Carbon $at): bool
+    {
+        if ($start && $at->lt($start)) return false;
+        if ($end && $at->gte($end)) return false;
 
         return true;
     }

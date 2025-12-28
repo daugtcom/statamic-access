@@ -36,13 +36,14 @@ class EntitlementApiTest extends TestCase
             $start,
             $end,
             true,
+            false,
             true
         );
 
         $this->assertSame(EntitlementEntry::COLLECTION, $entitlement->collectionHandle());
         $this->assertSame($user->id(), $entitlement->get(EntitlementEntry::USER));
         $this->assertSame($target->id(), $entitlement->get(EntitlementEntry::TARGET));
-        $this->assertTrue((bool) $entitlement->get(EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY));
+        $this->assertTrue((bool) $entitlement->get(EntitlementEntry::KEEP_ACCESSIBLE_AFTER_EXPIRY));
         $this->assertTrue($entitlement->published());
 
         $validityStart = $entitlement->get(EntitlementEntry::VALIDITY_START);
@@ -150,7 +151,8 @@ class EntitlementApiTest extends TestCase
         bool $published,
         ?string $validityStart,
         ?string $validityEnd,
-        ?bool $keepUnlockedAfterExpiry = null
+        ?bool $keepAccessibleAfterExpiry = null,
+        ?bool $keepUnlockedWhenActive = null
     ): EntryContract {
         $data = [
             EntitlementEntry::USER => $userId,
@@ -165,8 +167,12 @@ class EntitlementApiTest extends TestCase
             $data[EntitlementEntry::VALIDITY_END] = $validityEnd;
         }
 
-        if ($keepUnlockedAfterExpiry !== null) {
-            $data[EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY] = $keepUnlockedAfterExpiry;
+        if ($keepAccessibleAfterExpiry !== null) {
+            $data[EntitlementEntry::KEEP_ACCESSIBLE_AFTER_EXPIRY] = $keepAccessibleAfterExpiry;
+        }
+
+        if ($keepUnlockedWhenActive !== null) {
+            $data[EntitlementEntry::KEEP_UNLOCKED_WHEN_ACTIVE] = $keepUnlockedWhenActive;
         }
 
         $entry = Entry::make()->collection(EntitlementEntry::COLLECTION);

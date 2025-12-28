@@ -12,7 +12,8 @@ class EntitlementEntry extends Entry
     public const TARGET = 'target';
     public const VALIDITY_START = 'validity_start';
     public const VALIDITY_END = 'validity_end';
-    public const KEEP_UNLOCKED_AFTER_EXPIRY = 'keepUnlockedAfterExpiry';
+    public const KEEP_ACCESSIBLE_AFTER_EXPIRY = 'keepAccessibleAfterExpiry';
+    public const KEEP_UNLOCKED_WHEN_ACTIVE = 'keepUnlockedWhenActive';
 
     public function userId(): ?string
     {
@@ -38,9 +39,16 @@ class EntitlementEntry extends Entry
         return $this->get(self::VALIDITY_END);
     }
 
-    public function keepUnlockedAfterExpiry(): bool
+    public function keepAccessibleAfterExpiry(): bool
     {
-        $value = $this->get(self::KEEP_UNLOCKED_AFTER_EXPIRY);
+        $value = $this->get(self::KEEP_ACCESSIBLE_AFTER_EXPIRY);
+
+        return Boolean::from($value);
+    }
+
+    public function keepUnlockedWhenActive(): bool
+    {
+        $value = $this->get(self::KEEP_UNLOCKED_WHEN_ACTIVE);
 
         return Boolean::from($value);
     }

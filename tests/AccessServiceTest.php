@@ -60,7 +60,7 @@ class AccessServiceTest extends TestCase
         $this->assertFalse($service->canAccess($user, $target, $at));
     }
 
-    public function test_can_access_allows_keep_unlocked_after_expiry(): void
+    public function test_can_access_allows_keep_accessible_after_expiry(): void
     {
         $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
@@ -83,7 +83,7 @@ class AccessServiceTest extends TestCase
         $this->assertTrue($service->canAccess($user, $target, now()));
     }
 
-    public function test_can_access_denies_keep_unlocked_before_start(): void
+    public function test_can_access_denies_keep_accessible_before_start(): void
     {
         $this->makeCollection(EntitlementEntry::COLLECTION);
         $this->makeCollection('products');
@@ -173,6 +173,93 @@ class AccessServiceTest extends TestCase
 
         $this->assertTrue($service->canAccess($user, $target, now()));
         $this->assertFalse($service->canAccess($user, $target, now()->addDays(2)));
+    }
+
+    public function test_access_timeslots_returns_unrestricted_for_open_entitlement(): void
+    {
+        $this->makeCollection(EntitlementEntry::COLLECTION);
+        $this->makeCollection('products');
+
+        $user = $this->makeUser('user-timeslots-1');
+        $target = $this->makeEntry('products', 'product-timeslots-1', true);
+
+        $this->makeEntitlement('entitlement-timeslots-1', $user->id(), $target->id(), true, null, null);
+
+        $service = new AccessService();
+        $result = $service->accessTimeslots($user, $target, now());
+
+        $this->assertTrue($result['unrestricted']);
+        $this->assertSame([], $result['slots']);
+    }
+
+    public function test_access_timeslots_unrestricted_when_keep_unlocked_when_active(): void
+    {
+        $this->makeCollection(EntitlementEntry::COLLECTION);
+        $this->makeCollection('products');
+
+        $user = $this->makeUser('user-timeslots-2');
+        $target = $this->makeEntry('products', 'product-timeslots-2', true);
+
+        $start = now()->subDay();
+        $end = now()->addDay();
+
+        $this->makeEntitlement(
+            'entitlement-timeslots-2',
+            $user->id(),
+            $target->id(),
+            true,
+            $start->toDateTimeString(),
+            $end->toDateTimeString(),
+            null,
+            true
+        );
+
+        $service = new AccessService();
+        $result = $service->accessTimeslots($user, $target, now());
+
+        $this->assertTrue($result['unrestricted']);
+        $this->assertCount(1, $result['slots']);
+        $this->assertSame($start->toIso8601String(), $result['slots'][0]['start']);
+        $this->assertSame($end->toIso8601String(), $result['slots'][0]['end']);
+    }
+
+    public function test_access_timeslots_excludes_expired_without_keep_accessible(): void
+    {
+        $this->makeCollection(EntitlementEntry::COLLECTION);
+        $this->makeCollection('products');
+
+        $user = $this->makeUser('user-timeslots-3');
+        $target = $this->makeEntry('products', 'product-timeslots-3', true);
+
+        $start = now()->subDays(5);
+        $end = now()->subDays(2);
+
+        $this->makeEntitlement(
+            'entitlement-timeslots-3',
+            $user->id(),
+            $target->id(),
+            true,
+            $start->toDateTimeString(),
+            $end->toDateTimeString()
+        );
+
+        $this->makeEntitlement(
+            'entitlement-timeslots-4',
+            $user->id(),
+            $target->id(),
+            true,
+            $start->toDateTimeString(),
+            $end->toDateTimeString(),
+            true
+        );
+
+        $service = new AccessService();
+        $result = $service->accessTimeslots($user, $target, now());
+
+        $this->assertFalse($result['unrestricted']);
+        $this->assertCount(1, $result['slots']);
+        $this->assertSame($start->toIso8601String(), $result['slots'][0]['start']);
+        $this->assertSame($end->toIso8601String(), $result['slots'][0]['end']);
     }
 
     public function test_can_access_returns_false_when_target_unpublished(): void
@@ -296,7 +383,8 @@ class AccessServiceTest extends TestCase
         bool $published,
         ?string $validityStart,
         ?string $validityEnd,
-        ?bool $keepUnlockedAfterExpiry = null
+        ?bool $keepAccessibleAfterExpiry = null,
+        ?bool $keepUnlockedWhenActive = null
     ): EntryContract {
         $data = [
             EntitlementEntry::USER => $userId,
@@ -311,8 +399,12 @@ class AccessServiceTest extends TestCase
             $data[EntitlementEntry::VALIDITY_END] = $validityEnd;
         }
 
-        if ($keepUnlockedAfterExpiry !== null) {
-            $data[EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY] = $keepUnlockedAfterExpiry;
+        if ($keepAccessibleAfterExpiry !== null) {
+            $data[EntitlementEntry::KEEP_ACCESSIBLE_AFTER_EXPIRY] = $keepAccessibleAfterExpiry;
+        }
+
+        if ($keepUnlockedWhenActive !== null) {
+            $data[EntitlementEntry::KEEP_UNLOCKED_WHEN_ACTIVE] = $keepUnlockedWhenActive;
         }
 
         $entry = Entry::make()->collection(EntitlementEntry::COLLECTION);
