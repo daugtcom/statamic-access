@@ -11,5 +11,6 @@
   "daugt-access::entitlements.keep_unlocked_when_active": "Keep unlocked while active",
   "daugt-access::entitlements.keep_unlocked_when_active_instructions": "While active, unlock all content in the target entry.",
   "daugt-access::members.role": "Member",
-  "daugt-access::members.group": "Members"
+  "daugt-access::members.group": "Members",
+  "daugt-access::widget.show": "Show"
 }

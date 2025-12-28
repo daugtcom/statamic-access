@@ -38,12 +38,20 @@ class EntitlementBlueprint
                 'default' => false,
                 'display' => 'daugt-access::entitlements.keep_accessible_after_expiry',
                 'instructions' => 'daugt-access::entitlements.keep_accessible_after_expiry_instructions',
+                'if_any' => [
+                    EntitlementEntry::VALIDITY_START => 'not empty',
+                    EntitlementEntry::VALIDITY_END => 'not empty',
+                ],
             ],
             EntitlementEntry::KEEP_UNLOCKED_WHEN_ACTIVE => [
                 'type' => 'toggle',
                 'default' => false,
                 'display' => 'daugt-access::entitlements.keep_unlocked_when_active',
                 'instructions' => 'daugt-access::entitlements.keep_unlocked_when_active_instructions',
+                'if_any' => [
+                    EntitlementEntry::VALIDITY_START => 'not empty',
+                    EntitlementEntry::VALIDITY_END => 'not empty',
+                ],
             ],
         ]);
     }

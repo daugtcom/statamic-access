@@ -1,5 +1,5 @@
 {
-  "daugt-access::entitlements.name": "Freischaltungen",
+  "daugt-access::entitlements.name": "Zugänge",
   "daugt-access::entitlements.target": "Ziel",
   "daugt-access::entitlements.user": "Nutzer",
   "daugt-access::entitlements.validity_start": "Gültig ab",
@@ -11,5 +11,6 @@
   "daugt-access::entitlements.keep_unlocked_when_active": "Während aktiv alles freischalten",
   "daugt-access::entitlements.keep_unlocked_when_active_instructions": "Während der Laufzeit ist der gesamte Inhalt des Ziels freigeschaltet.",
   "daugt-access::members.role": "Mitglied",
-  "daugt-access::members.group": "Mitglieder"
+  "daugt-access::members.group": "Mitglieder",
+  "daugt-access::widget.show": "Anzeigen"
 }

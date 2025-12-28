@@ -79,32 +79,12 @@ class AccessList extends Widget
 
     private function imageUrl(EntryContract $entry, string $handle): ?string
     {
-        // Use augmentation so assets resolve to Asset objects instead of raw filenames/IDs
-        if (!method_exists($entry, 'augmentedValue')) {
-            throw new InvalidArgumentException("Entry does not support augmented values (unexpected Statamic version).");
-        }
+        $asset = $entry->augmentedValue($handle)->value();
 
-        $value = $entry->augmentedValue($handle)->value();
-        if (!$value) return null;
-
-        // single asset
-        if ($value instanceof Asset) {
-            return $value->url();
-        }
-
-        // multiple assets field -> first asset
-        if ($value instanceof Collection) {
-            $first = $value->first();
-            return $first instanceof Asset ? $first->url() : null;
-        }
-
-        // sometimes array-ish
-        if (is_array($value)) {
-            $url = $value['url'] ?? $value['permalink'] ?? null;
-            return is_string($url) ? $url : null;
-        }
-
-        // already a string URL
-        return is_string($value) ? $value : null;
+        return $asset->manipulate([
+            'w' => 64,
+            'h' => 64,
+            'fit' => 'crop_focal',
+        ]);
     }
 }

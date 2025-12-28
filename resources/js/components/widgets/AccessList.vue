@@ -1,5 +1,5 @@
 <script setup>
-    import { Widget, Listing, Icon } from '@statamic/cms/ui';
+    import { Widget, Listing, Button } from '@statamic/cms/ui';
 
     defineProps({
         title: { type: String, default: 'Access List' },
@@ -7,22 +7,10 @@
     });
 
     const columns = [
-        { field: 'image', label: 'Image', sortable: false },
-        { field: 'name', label: 'Name', sortable: false },
+        { field: 'name', label: __('daugt-access::entitlements.name'), sortable: false },
+        { field: 'actions', label: '', sortable: false },
     ];
 
-    function imageSrc(row) {
-        const img = row?.image;
-
-        // If backend already returns a URL/path, use it directly.
-        if (typeof img === 'string' && (img.startsWith('http') || img.startsWith('/'))) {
-            return img;
-        }
-
-        // Otherwise it's probably a raw filename (current situation).
-        // Return null so we render a fallback label instead of a broken <img>.
-        return null;
-    }
 </script>
 
 <template>
@@ -37,31 +25,27 @@
                 :items="access"
                 :columns="columns"
             >
-                <template #cell-name="{ row, value }">
-                    <a
-                        v-if="row.url"
-                        class="title-index-field md:text-lg! inline-flex gap-x-1 flex-grow-1"
-                        :href="row.url"
-                    >
-                        {{value}}
-                        <Icon name="external-link" />
-                    </a>
-                    <span v-else class="title-index-field" v-html="value" />
+                <template #cell-name="{ row }">
+                  <div class="flex items-center gap-2">
+                    <img
+                        v-if="row.image"
+                        :src="row.image"
+                        :alt="row.product ?? ''"
+                        class="h-8 w-8 rounded object-cover bg-gray-100"
+                        loading="lazy"
+                    />
+                    <span>{{ row.name ?? '—' }}</span>
+                  </div>
                 </template>
-
-                <template #cell-image="{ row }">
-                    <div class="gap-2">
-                        <img
-                            v-if="imageSrc(row)"
-                            :src="imageSrc(row)"
-                            alt=""
-                            class="max-h-24 max-w-24 md:max-w-36 rounded object-cover"
-                        />
-                        <span v-else class="text-xs text-gray-500">
-                            {{ row.image ?? '—' }}
-                        </span>
-                    </div>
-                </template>
+              <template #cell-actions="{ row }">
+                <Button
+                    variant="default"
+                    size="sm"
+                    iconAppend="eye"
+                    :text="__('daugt-access::widget.show')"
+                    :href="row.url"
+                />
+              </template>
             </Listing>
         </div>
     </Widget>
