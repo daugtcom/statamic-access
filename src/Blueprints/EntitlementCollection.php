@@ -14,12 +14,16 @@ class EntitlementCollection
         $collection->title('daugt-access::entitlements.name');
 
         $collection->titleFormats(
-            "{%s:title} - {%s:name} ({%s:start} - {%s:end})",
-            EntitlementEntry::TARGET,
-            EntitlementEntry::USER,
-            EntitlementEntry::VALIDITY,
-            EntitlementEntry::VALIDITY
+            sprintf(
+                "{%s:title} - {%s:name} ({%s:start} - {%s:end})",
+                EntitlementEntry::TARGET,
+                EntitlementEntry::USER,
+                EntitlementEntry::VALIDITY,
+                EntitlementEntry::VALIDITY
+            )
         );
+
+        $collection->requiresSlugs(false);
 
         return $collection;
     }
