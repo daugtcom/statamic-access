@@ -15,11 +15,11 @@ class EntitlementCollection
 
         $collection->titleFormats(
             sprintf(
-                "{%s:title} - {%s:name} ({%s:start} - {%s:end})",
+                "{%s:title} - {%s:name} ({%s} - {%s})",
                 EntitlementEntry::TARGET,
                 EntitlementEntry::USER,
-                EntitlementEntry::VALIDITY,
-                EntitlementEntry::VALIDITY
+                EntitlementEntry::VALIDITY_START,
+                EntitlementEntry::VALIDITY_END
             )
         );
 

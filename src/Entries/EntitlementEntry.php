@@ -10,7 +10,8 @@ class EntitlementEntry extends Entry
     public const COLLECTION = 'entitlements';
     public const USER = 'user';
     public const TARGET = 'target';
-    public const VALIDITY = 'validity';
+    public const VALIDITY_START = 'validity_start';
+    public const VALIDITY_END = 'validity_end';
     public const KEEP_UNLOCKED_AFTER_EXPIRY = 'keepUnlockedAfterExpiry';
 
     public function userId(): ?string
@@ -27,9 +28,14 @@ class EntitlementEntry extends Entry
         return $value !== null ? (string) $value : null;
     }
 
-    public function validity(): mixed
+    public function validityStart(): mixed
     {
-        return $this->get(self::VALIDITY);
+        return $this->get(self::VALIDITY_START);
+    }
+
+    public function validityEnd(): mixed
+    {
+        return $this->get(self::VALIDITY_END);
     }
 
     public function keepUnlockedAfterExpiry(): bool

@@ -21,11 +21,15 @@ class EntitlementBlueprint
                 'collections' => config('statamic.daugt-access.entitlements.target_collections'),
                 'display' => 'daugt-access::entitlements.target',
             ],
-            EntitlementEntry::VALIDITY => [
+            EntitlementEntry::VALIDITY_START => [
                 'type' => 'date',
-                'mode' => 'range',
                 'time_enabled' => true,
-                'display' => 'daugt-access::entitlements.validity',
+                'display' => 'daugt-access::entitlements.validity_start',
+            ],
+            EntitlementEntry::VALIDITY_END => [
+                'type' => 'date',
+                'time_enabled' => true,
+                'display' => 'daugt-access::entitlements.validity_end',
             ],
             EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY => [
                 'type' => 'toggle',

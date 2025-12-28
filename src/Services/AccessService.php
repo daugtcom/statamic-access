@@ -33,7 +33,8 @@ final class AccessService
             ->where(EntitlementEntry::TARGET, $targetId)
             ->get()
             ->contains(fn (EntitlementEntry $entitlement) => $this->isValidAt(
-                $entitlement->validity(),
+                $entitlement->validityStart(),
+                $entitlement->validityEnd(),
                 $at,
                 $entitlement->keepUnlockedAfterExpiry()
             ));
@@ -62,7 +63,8 @@ final class AccessService
             ->where(EntitlementEntry::USER, $userId)
             ->get()
             ->filter(fn (EntitlementEntry $entitlement) => $this->isValidAt(
-                $entitlement->validity(),
+                $entitlement->validityStart(),
+                $entitlement->validityEnd(),
                 $at,
                 $entitlement->keepUnlockedAfterExpiry()
             ))
@@ -111,11 +113,12 @@ final class AccessService
             EntitlementEntry::TARGET => $targetId,
         ];
 
-        if ($start || $end) {
-            $data[EntitlementEntry::VALIDITY] = array_filter([
-                'start' => $start ? Carbon::instance($start)->toDateTimeString() : null,
-                'end' => $end ? Carbon::instance($end)->toDateTimeString() : null,
-            ]);
+        if ($start) {
+            $data[EntitlementEntry::VALIDITY_START] = Carbon::instance($start)->toDateTimeString();
+        }
+
+        if ($end) {
+            $data[EntitlementEntry::VALIDITY_END] = Carbon::instance($end)->toDateTimeString();
         }
 
         $data[EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY] = $keepUnlockedAfterExpiry;
@@ -208,34 +211,22 @@ final class AccessService
         return method_exists($entry, 'published') ? (bool) $entry->published() : false;
     }
 
-    private function isValidAt(mixed $range, Carbon $at, bool $keepUnlockedAfterExpiry = false): bool
+    private function isValidAt(
+        mixed $startRaw,
+        mixed $endRaw,
+        Carbon $at,
+        bool $keepUnlockedAfterExpiry = false
+    ): bool
     {
-        if (empty($range)) return true;
+        if (empty($startRaw) && empty($endRaw)) return true;
 
-        [$start, $end] = $this->parseRange($range);
+        $start = $this->parseDateLike($startRaw);
+        $end = $this->parseDateLike($endRaw);
 
         if ($start && $at->lt($start)) return false;
         if (!$keepUnlockedAfterExpiry && $end && $at->gte($end)) return false;
 
         return true;
-    }
-
-    /**
-     * @return array{0: Carbon|null, 1: Carbon|null}
-     */
-    private function parseRange(mixed $range): array
-    {
-        if (is_string($range)) {
-            return [Carbon::parse($range), null];
-        }
-        if (!is_array($range)) {
-            return [null, null];
-        }
-
-        $startRaw = Arr::get($range, 'start', Arr::get($range, 'from'));
-        $endRaw   = Arr::get($range, 'end', Arr::get($range, 'to'));
-
-        return [$this->parseDateLike($startRaw), $this->parseDateLike($endRaw)];
     }
 
     private function parseDateLike(mixed $value): ?Carbon
@@ -247,7 +238,14 @@ final class AccessService
         }
 
         if (is_array($value)) {
-            $nested = Arr::get($value, 'date') ?? Arr::get($value, 'value');
+            $date = Arr::get($value, 'date');
+            $time = Arr::get($value, 'time');
+
+            if (is_string($date) && is_string($time)) {
+                return Carbon::parse($date . ' ' . $time);
+            }
+
+            $nested = $date ?? Arr::get($value, 'value');
             return $nested ? Carbon::parse($nested) : null;
         }
 

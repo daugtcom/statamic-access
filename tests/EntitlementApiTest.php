@@ -45,10 +45,10 @@ class EntitlementApiTest extends TestCase
         $this->assertTrue((bool) $entitlement->get(EntitlementEntry::KEEP_UNLOCKED_AFTER_EXPIRY));
         $this->assertTrue($entitlement->published());
 
-        $range = $entitlement->get(EntitlementEntry::VALIDITY);
-        $this->assertIsArray($range);
-        $this->assertSame($start->toDateTimeString(), $range['start'] ?? null);
-        $this->assertSame($end->toDateTimeString(), $range['end'] ?? null);
+        $validityStart = $entitlement->get(EntitlementEntry::VALIDITY_START);
+        $validityEnd = $entitlement->get(EntitlementEntry::VALIDITY_END);
+        $this->assertSame($start->toDateTimeString(), $validityStart);
+        $this->assertSame($end->toDateTimeString(), $validityEnd);
 
         Event::assertDispatched(EntitlementGranted::class, function ($event) use ($entitlement) {
             return (string) $event->entitlement->id() === (string) $entitlement->id();
@@ -65,7 +65,7 @@ class EntitlementApiTest extends TestCase
         $user = $this->makeUser('api-user-2');
         $target = $this->makeEntry('products', 'api-product-2', true);
 
-        $entitlement = $this->makeEntitlement('api-entitlement-1', $user->id(), $target->id(), true, null);
+        $entitlement = $this->makeEntitlement('api-entitlement-1', $user->id(), $target->id(), true, null, null);
 
         $service = new AccessService();
         $result = $service->revokeEntitlement($entitlement);
@@ -89,9 +89,9 @@ class EntitlementApiTest extends TestCase
         $otherUser = $this->makeUser('api-user-3');
         $target = $this->makeEntry('products', 'api-product-2', true);
 
-        $entitlementOne = $this->makeEntitlement('api-entitlement-1', $user->id(), $target->id(), true, null);
-        $entitlementTwo = $this->makeEntitlement('api-entitlement-2', $user->id(), $target->id(), false, null);
-        $this->makeEntitlement('api-entitlement-3', $otherUser->id(), $target->id(), true, null);
+        $entitlementOne = $this->makeEntitlement('api-entitlement-1', $user->id(), $target->id(), true, null, null);
+        $entitlementTwo = $this->makeEntitlement('api-entitlement-2', $user->id(), $target->id(), false, null, null);
+        $this->makeEntitlement('api-entitlement-3', $otherUser->id(), $target->id(), true, null, null);
 
         $service = new AccessService();
         $count = $service->revokeEntitlementsForUserTarget($user, $target);
@@ -148,7 +148,8 @@ class EntitlementApiTest extends TestCase
         string $userId,
         string $targetId,
         bool $published,
-        mixed $validity,
+        ?string $validityStart,
+        ?string $validityEnd,
         ?bool $keepUnlockedAfterExpiry = null
     ): EntryContract {
         $data = [
@@ -156,8 +157,12 @@ class EntitlementApiTest extends TestCase
             EntitlementEntry::TARGET => $targetId,
         ];
 
-        if ($validity !== null) {
-            $data[EntitlementEntry::VALIDITY] = $validity;
+        if ($validityStart !== null) {
+            $data[EntitlementEntry::VALIDITY_START] = $validityStart;
+        }
+
+        if ($validityEnd !== null) {
+            $data[EntitlementEntry::VALIDITY_END] = $validityEnd;
         }
 
         if ($keepUnlockedAfterExpiry !== null) {

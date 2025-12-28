@@ -21,12 +21,10 @@ class AccessServiceTest extends TestCase
         $user = $this->makeUser('user-1');
         $target = $this->makeEntry('products', 'product-1', true);
 
-        $validity = [
-            'start' => now()->subDay()->toDateTimeString(),
-            'end' => now()->addDay()->toDateTimeString(),
-        ];
+        $validityStart = now()->subDay()->toDateTimeString();
+        $validityEnd = now()->addDay()->toDateTimeString();
 
-        $this->makeEntitlement('entitlement-1', $user->id(), $target->id(), true, $validity);
+        $this->makeEntitlement('entitlement-1', $user->id(), $target->id(), true, $validityStart, $validityEnd);
 
         $service = new AccessService();
         $at = now();
@@ -48,13 +46,17 @@ class AccessServiceTest extends TestCase
 
         $this->assertFalse($service->canAccess($user, $target, $at));
 
-        $this->makeEntitlement('entitlement-2', $user->id(), $target->id(), false, null);
+        $this->makeEntitlement('entitlement-2', $user->id(), $target->id(), false, null, null);
         $this->assertFalse($service->canAccess($user, $target, $at));
 
-        $this->makeEntitlement('entitlement-3', $user->id(), $target->id(), true, [
-            'start' => now()->addDay()->toDateTimeString(),
-            'end' => now()->addDays(2)->toDateTimeString(),
-        ]);
+        $this->makeEntitlement(
+            'entitlement-3',
+            $user->id(),
+            $target->id(),
+            true,
+            now()->addDay()->toDateTimeString(),
+            now()->addDays(2)->toDateTimeString()
+        );
         $this->assertFalse($service->canAccess($user, $target, $at));
     }
 
@@ -66,10 +68,15 @@ class AccessServiceTest extends TestCase
         $user = $this->makeUser('user-keep-1');
         $target = $this->makeEntry('products', 'product-keep-1', true);
 
-        $this->makeEntitlement('entitlement-keep-1', $user->id(), $target->id(), true, [
-            'start' => now()->subDays(10)->toDateTimeString(),
-            'end' => now()->subDays(2)->toDateTimeString(),
-        ], true);
+        $this->makeEntitlement(
+            'entitlement-keep-1',
+            $user->id(),
+            $target->id(),
+            true,
+            now()->subDays(10)->toDateTimeString(),
+            now()->subDays(2)->toDateTimeString(),
+            true
+        );
 
         $service = new AccessService();
 
@@ -84,14 +91,88 @@ class AccessServiceTest extends TestCase
         $user = $this->makeUser('user-keep-2');
         $target = $this->makeEntry('products', 'product-keep-2', true);
 
-        $this->makeEntitlement('entitlement-keep-2', $user->id(), $target->id(), true, [
-            'start' => now()->addDay()->toDateTimeString(),
-            'end' => now()->addDays(10)->toDateTimeString(),
-        ], true);
+        $this->makeEntitlement(
+            'entitlement-keep-2',
+            $user->id(),
+            $target->id(),
+            true,
+            now()->addDay()->toDateTimeString(),
+            now()->addDays(10)->toDateTimeString(),
+            true
+        );
 
         $service = new AccessService();
 
         $this->assertFalse($service->canAccess($user, $target, now()));
+    }
+
+    public function test_can_access_allows_open_ended_start_only(): void
+    {
+        $this->makeCollection(EntitlementEntry::COLLECTION);
+        $this->makeCollection('products');
+
+        $user = $this->makeUser('user-open-start');
+        $target = $this->makeEntry('products', 'product-open-start', true);
+
+        $this->makeEntitlement(
+            'entitlement-open-start',
+            $user->id(),
+            $target->id(),
+            true,
+            now()->subDay()->toDateTimeString(),
+            null
+        );
+
+        $service = new AccessService();
+
+        $this->assertTrue($service->canAccess($user, $target, now()));
+    }
+
+    public function test_can_access_denies_open_ended_start_only_before_start(): void
+    {
+        $this->makeCollection(EntitlementEntry::COLLECTION);
+        $this->makeCollection('products');
+
+        $user = $this->makeUser('user-open-start-future');
+        $target = $this->makeEntry('products', 'product-open-start-future', true);
+
+        $this->makeEntitlement(
+            'entitlement-open-start-future',
+            $user->id(),
+            $target->id(),
+            true,
+            now()->addDay()->toDateTimeString(),
+            null
+        );
+
+        $service = new AccessService();
+
+        $this->assertFalse($service->canAccess($user, $target, now()));
+    }
+
+    public function test_can_access_allows_open_ended_end_only_until_end(): void
+    {
+        $this->makeCollection(EntitlementEntry::COLLECTION);
+        $this->makeCollection('products');
+
+        $user = $this->makeUser('user-open-end');
+        $target = $this->makeEntry('products', 'product-open-end', true);
+
+        $end = now()->addDay()->toDateTimeString();
+
+        $this->makeEntitlement(
+            'entitlement-open-end',
+            $user->id(),
+            $target->id(),
+            true,
+            null,
+            $end
+        );
+
+        $service = new AccessService();
+
+        $this->assertTrue($service->canAccess($user, $target, now()));
+        $this->assertFalse($service->canAccess($user, $target, now()->addDays(2)));
     }
 
     public function test_can_access_returns_false_when_target_unpublished(): void
@@ -102,7 +183,7 @@ class AccessServiceTest extends TestCase
         $user = $this->makeUser('user-3');
         $target = $this->makeEntry('products', 'product-3', false);
 
-        $this->makeEntitlement('entitlement-4', $user->id(), $target->id(), true, null);
+        $this->makeEntitlement('entitlement-4', $user->id(), $target->id(), true, null, null);
 
         $service = new AccessService();
 
@@ -123,24 +204,31 @@ class AccessServiceTest extends TestCase
         $expired = $this->makeEntry('beta', 'beta-2', true);
         $keepExpired = $this->makeEntry('beta', 'beta-3', true);
 
-        $validity = [
-            'start' => now()->subDay()->toDateTimeString(),
-            'end' => now()->addDay()->toDateTimeString(),
-        ];
+        $validityStart = now()->subDay()->toDateTimeString();
+        $validityEnd = now()->addDay()->toDateTimeString();
 
-        $this->makeEntitlement('entitlement-5', $user->id(), $alpha->id(), true, $validity);
-        $this->makeEntitlement('entitlement-6', $user->id(), $beta->id(), true, $validity);
-        $this->makeEntitlement('entitlement-7', $user->id(), $unpublished->id(), true, $validity);
-        $this->makeEntitlement('entitlement-8', $user->id(), $expired->id(), true, [
-            'start' => now()->subDays(3)->toDateTimeString(),
-            'end' => now()->subDay()->toDateTimeString(),
-        ]);
-        $this->makeEntitlement('entitlement-keep-3', $user->id(), $keepExpired->id(), true, [
-            'start' => now()->subDays(6)->toDateTimeString(),
-            'end' => now()->subDays(2)->toDateTimeString(),
-        ], true);
-        $this->makeEntitlement('entitlement-9', $user->id(), $alpha->id(), true, $validity);
-        $this->makeEntitlement('entitlement-10', $user->id(), $beta->id(), false, $validity);
+        $this->makeEntitlement('entitlement-5', $user->id(), $alpha->id(), true, $validityStart, $validityEnd);
+        $this->makeEntitlement('entitlement-6', $user->id(), $beta->id(), true, $validityStart, $validityEnd);
+        $this->makeEntitlement('entitlement-7', $user->id(), $unpublished->id(), true, $validityStart, $validityEnd);
+        $this->makeEntitlement(
+            'entitlement-8',
+            $user->id(),
+            $expired->id(),
+            true,
+            now()->subDays(3)->toDateTimeString(),
+            now()->subDay()->toDateTimeString()
+        );
+        $this->makeEntitlement(
+            'entitlement-keep-3',
+            $user->id(),
+            $keepExpired->id(),
+            true,
+            now()->subDays(6)->toDateTimeString(),
+            now()->subDays(2)->toDateTimeString(),
+            true
+        );
+        $this->makeEntitlement('entitlement-9', $user->id(), $alpha->id(), true, $validityStart, $validityEnd);
+        $this->makeEntitlement('entitlement-10', $user->id(), $beta->id(), false, $validityStart, $validityEnd);
 
         $service = new AccessService();
         $targets = $service->accessibleTargets($user, null, now());
@@ -206,7 +294,8 @@ class AccessServiceTest extends TestCase
         string $userId,
         string $targetId,
         bool $published,
-        mixed $validity,
+        ?string $validityStart,
+        ?string $validityEnd,
         ?bool $keepUnlockedAfterExpiry = null
     ): EntryContract {
         $data = [
@@ -214,8 +303,12 @@ class AccessServiceTest extends TestCase
             EntitlementEntry::TARGET => $targetId,
         ];
 
-        if ($validity !== null) {
-            $data[EntitlementEntry::VALIDITY] = $validity;
+        if ($validityStart !== null) {
+            $data[EntitlementEntry::VALIDITY_START] = $validityStart;
+        }
+
+        if ($validityEnd !== null) {
+            $data[EntitlementEntry::VALIDITY_END] = $validityEnd;
         }
 
         if ($keepUnlockedAfterExpiry !== null) {
