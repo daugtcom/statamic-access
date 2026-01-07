@@ -9,6 +9,8 @@ use Statamic\Contracts\Auth\User as StatamicUser;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\Collection as StatamicCollection;
 use Statamic\Facades\Entry;
+use Statamic\Facades\Taxonomy;
+use Statamic\Facades\Term;
 use Statamic\Facades\User;
 
 class AccessServiceTest extends TestCase
@@ -336,9 +338,136 @@ class AccessServiceTest extends TestCase
         $this->assertNotContains((string) $beta->id(), $filteredIds);
     }
 
-    private function makeCollection(string $handle): void
+    public function test_accessible_series_items_use_timeslots(): void
     {
-        if (StatamicCollection::find($handle)) {
+        $this->makeCollection(EntitlementEntry::COLLECTION);
+        $this->makeCollection('series');
+        $this->makeCollection('series_items', true, 'private', ['series_categories']);
+        $this->makeTaxonomy('series_categories');
+
+        $user = $this->makeUser('user-series-1');
+        $series = $this->makeEntry('series', 'series-1', true);
+        $otherSeries = $this->makeEntry('series', 'series-2', true);
+
+        $seriesTerm = $this->makeTerm('series_categories', 'series-1-category', 'Series 1 - Category');
+        $otherTerm = $this->makeTerm('series_categories', 'series-2-category', 'Series 2 - Category');
+
+        $slotStart = now()->subDays(2)->toDateTimeString();
+        $slotEnd = now()->addHours(1)->toDateTimeString();
+
+        $withinSlotDate = now()->subDay();
+        $outsideSlotDate = now()->subDays(5);
+
+        $itemWithinSlot = $this->makeDatedEntry('series_items', 'item-1', true, $withinSlotDate, [
+            'series' => [(string) $series->id()],
+            'series_categories' => [$seriesTerm->slug()],
+        ]);
+
+        $itemOutsideSlot = $this->makeDatedEntry('series_items', 'item-2', true, $outsideSlotDate, [
+            'series' => [(string) $series->id()],
+            'series_categories' => [$seriesTerm->slug()],
+        ]);
+
+        $itemOtherSeries = $this->makeDatedEntry('series_items', 'item-3', true, $withinSlotDate, [
+            'series' => [(string) $otherSeries->id()],
+            'series_categories' => [$otherTerm->slug()],
+        ]);
+
+        $itemNoSeries = $this->makeDatedEntry('series_items', 'item-4', true, $withinSlotDate);
+        $itemNoCategory = $this->makeDatedEntry('series_items', 'item-5', true, $withinSlotDate, [
+            'series' => [(string) $series->id()],
+        ]);
+
+        $this->makeEntitlement('entitlement-series-1', $user->id(), $series->id(), true, $slotStart, $slotEnd);
+        $service = new AccessService();
+        $items = $service->accessibleSeriesItems($user, $series, 'series_items', 'series', 'series_categories', now());
+        $ids = collect($items)->map(fn (EntryContract $entry) => (string) $entry->id())->all();
+
+        $this->assertContains((string) $itemWithinSlot->id(), $ids);
+        $this->assertContains((string) $itemNoCategory->id(), $ids);
+        $this->assertNotContains((string) $itemOtherSeries->id(), $ids);
+        $this->assertNotContains((string) $itemNoSeries->id(), $ids);
+    }
+
+    public function test_accessible_series_items_exclude_outside_timeslots(): void
+    {
+        $this->makeCollection(EntitlementEntry::COLLECTION);
+        $this->makeCollection('series');
+        $this->makeCollection('series_items', true, 'private', ['series_categories']);
+        $this->makeTaxonomy('series_categories');
+
+        $user = $this->makeUser('user-series-2');
+        $series = $this->makeEntry('series', 'series-2', true);
+
+        $seriesTerm = $this->makeTerm('series_categories', 'series-2-category', 'Series 2 - Category');
+
+        $slotStart = now()->subDays(2)->toDateTimeString();
+        $slotEnd = now()->addHours(1)->toDateTimeString();
+
+        $itemWithinSlot = $this->makeDatedEntry('series_items', 'item-5', true, now()->subDay(), [
+            'series' => [(string) $series->id()],
+            'series_categories' => [$seriesTerm->slug()],
+        ]);
+
+        $itemOutsideSlot = $this->makeDatedEntry('series_items', 'item-6', true, now()->subDays(5), [
+            'series' => [(string) $series->id()],
+            'series_categories' => [$seriesTerm->slug()],
+        ]);
+
+        $this->makeEntitlement('entitlement-series-2', $user->id(), $series->id(), true, $slotStart, $slotEnd);
+        $service = new AccessService();
+        $items = $service->accessibleSeriesItems($user, $series, 'series_items', 'series', 'series_categories', now());
+        $ids = collect($items)->map(fn (EntryContract $entry) => (string) $entry->id())->all();
+
+        $this->assertContains((string) $itemWithinSlot->id(), $ids);
+        $this->assertNotContains((string) $itemOutsideSlot->id(), $ids);
+    }
+
+    private function makeCollection(
+        string $handle,
+        bool $dated = false,
+        ?string $futureDateBehavior = null,
+        array $taxonomies = []
+    ): void
+    {
+        $existing = StatamicCollection::find($handle);
+
+        if ($existing) {
+            $dirty = false;
+
+            if ($handle === EntitlementEntry::COLLECTION && $existing->entryClass() !== EntitlementEntry::class) {
+                $existing->entryClass(EntitlementEntry::class);
+                $dirty = true;
+            }
+
+            if ($dated && ! $existing->dated()) {
+                $existing->dated(true);
+                $dirty = true;
+            }
+
+            if ($futureDateBehavior && $existing->futureDateBehavior() !== $futureDateBehavior) {
+                $existing->futureDateBehavior($futureDateBehavior);
+                $dirty = true;
+            }
+
+            if ($taxonomies !== []) {
+                $existingHandles = $existing->taxonomies()->map->handle()->all();
+                $merged = collect($existingHandles)
+                    ->merge($taxonomies)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if ($merged !== $existingHandles) {
+                    $existing->taxonomies($merged);
+                    $dirty = true;
+                }
+            }
+
+            if ($dirty) {
+                $existing->save();
+            }
+
             return;
         }
 
@@ -348,7 +477,42 @@ class AccessServiceTest extends TestCase
             $collection->entryClass(EntitlementEntry::class);
         }
 
+        if ($dated) {
+            $collection->dated(true);
+        }
+
+        if ($futureDateBehavior) {
+            $collection->futureDateBehavior($futureDateBehavior);
+        }
+
+        if ($taxonomies !== []) {
+            $collection->taxonomies($taxonomies);
+        }
+
         $collection->save();
+    }
+
+    private function makeTaxonomy(string $handle, ?string $title = null): void
+    {
+        if (Taxonomy::findByHandle($handle)) {
+            return;
+        }
+
+        $taxonomy = Taxonomy::make($handle);
+        $taxonomy->title($title ?? Str::title(str_replace(['_', '-'], ' ', $handle)));
+        $taxonomy->save();
+    }
+
+    private function makeTerm(string $taxonomy, string $slug, string $title)
+    {
+        $term = Term::make()
+            ->taxonomy($taxonomy)
+            ->slug($slug)
+            ->set('title', $title);
+
+        $term->save();
+
+        return $term;
     }
 
     private function makeUser(string $id): StatamicUser
@@ -370,6 +534,26 @@ class AccessServiceTest extends TestCase
         $entry->id($id);
         $entry->slug(Str::slug($id));
         $entry->data(['title' => Str::title(str_replace('-', ' ', $id))]);
+        $entry->published($published);
+        $entry->save();
+
+        return $entry;
+    }
+
+    private function makeDatedEntry(
+        string $collection,
+        string $id,
+        bool $published,
+        \Carbon\CarbonInterface $date,
+        array $data = []
+    ): EntryContract {
+        $this->makeCollection($collection, true, 'private');
+
+        $entry = Entry::make()->collection($collection);
+        $entry->id($id);
+        $entry->slug(Str::slug($id));
+        $entry->data(array_merge(['title' => Str::title(str_replace('-', ' ', $id))], $data));
+        $entry->date($date);
         $entry->published($published);
         $entry->save();
 

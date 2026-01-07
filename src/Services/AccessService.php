@@ -9,6 +9,7 @@ use Daugt\Access\Events\EntitlementRevoked;
 use Illuminate\Support\Arr;
 use Statamic\Contracts\Auth\User as StatamicUser;
 use Statamic\Contracts\Entries\Entry as EntryContract;
+use Statamic\Contracts\Taxonomies\Term as TermContract;
 use Statamic\Facades\Collection as StatamicCollection;
 use Statamic\Facades\Entry;
 
@@ -169,6 +170,91 @@ final class AccessService
         });
 
         return ['unrestricted' => $unrestricted, 'slots' => $slots];
+    }
+
+    /**
+     * Return accessible series items for a parent entry (course/series).
+     *
+     * @return array<int, EntryContract>
+     */
+    public function accessibleSeriesItems(
+        StatamicUser $user,
+        EntryContract|string $series,
+        string $itemsCollection,
+        ?string $seriesField = null,
+        ?string $taxonomy = null,
+        ?\DateTimeInterface $at = null,
+        string|TermContract|null $category = null
+    ): array {
+        if (! $this->entitlementsCollectionExists()) {
+            return [];
+        }
+
+        $seriesEntry = $this->resolveTargetEntry($series);
+        if (! $seriesEntry || ! $this->isPublishedEntry($seriesEntry)) {
+            return [];
+        }
+
+        $at = $at ? Carbon::instance($at) : now();
+        $seriesId = (string) $seriesEntry->id();
+        $seriesHandle = $seriesEntry->collectionHandle();
+
+        $seriesField ??= $seriesHandle;
+        $taxonomy ??= $category instanceof TermContract
+            ? $category->taxonomyHandle()
+            : ($seriesHandle ? "{$seriesHandle}_categories" : null);
+
+        if (! $seriesField) {
+            return [];
+        }
+
+        $categorySlug = null;
+        if ($category) {
+            if (! $taxonomy) {
+                return [];
+            }
+
+            $categorySlug = $this->normalizeTermSlug($category, $taxonomy);
+            if (! $categorySlug) {
+                return [];
+            }
+        }
+
+        $items = Entry::query()
+            ->where('collection', $itemsCollection)
+            ->whereStatus('published')
+            ->get();
+
+        if ($items->isEmpty()) {
+            return [];
+        }
+
+        $items = $items->filter(function (EntryContract $entry) use ($seriesField, $seriesId, $taxonomy, $categorySlug) {
+            $seriesValue = $entry->get($seriesField);
+            if (! $this->valueContainsId($seriesValue, $seriesId)) {
+                return false;
+            }
+
+            if (! $categorySlug) {
+                return true;
+            }
+
+            $terms = Arr::wrap($entry->get($taxonomy));
+            return in_array($categorySlug, $terms, true);
+        });
+
+        if ($items->isEmpty()) {
+            return [];
+        }
+
+        $timeslots = $this->accessTimeslots($user, $seriesEntry, $at);
+        $slotItems = $timeslots['unrestricted']
+            ? $items
+            : $items->filter(fn (EntryContract $entry) => $this->isEntryDateInSlots($entry, $timeslots['slots']));
+
+        $result = $slotItems->keyBy(fn (EntryContract $entry) => (string) $entry->id());
+
+        return $result->values()->all();
     }
 
     public function grantEntitlement(
@@ -343,4 +429,83 @@ final class AccessService
         return null;
     }
 
+    /**
+     * @param array<int, array{start: string|null, end: string|null}> $slots
+     */
+    private function isEntryDateInSlots(EntryContract $entry, array $slots): bool
+    {
+        $date = $entry->date();
+
+        if (! $date) {
+            return false;
+        }
+
+        foreach ($slots as $slot) {
+            $start = isset($slot['start']) && $slot['start'] ? Carbon::parse($slot['start']) : null;
+            $end = isset($slot['end']) && $slot['end'] ? Carbon::parse($slot['end']) : null;
+
+            if ($start && $date->lt($start)) {
+                continue;
+            }
+
+            if ($end && $date->gte($end)) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function normalizeTermSlug(string|TermContract|null $term, string $taxonomy): ?string
+    {
+        if (! $term) {
+            return null;
+        }
+
+        if ($term instanceof TermContract) {
+            return $term->slug();
+        }
+
+        if (! is_string($term) || $term === '') {
+            return null;
+        }
+
+        if (str_contains($term, '::')) {
+            $parts = explode('::', $term, 2);
+            if (($parts[0] ?? '') !== $taxonomy) {
+                return null;
+            }
+
+            return $parts[1] ?? null;
+        }
+
+        return $term;
+    }
+
+    private function valueContainsId(mixed $value, string $targetId): bool
+    {
+        if (! $value) {
+            return false;
+        }
+
+        $values = Arr::wrap($value);
+
+        foreach ($values as $item) {
+            if (is_object($item) && method_exists($item, 'id')) {
+                $item = $item->id();
+            }
+
+            if (is_array($item)) {
+                $item = Arr::get($item, 'id', $item);
+            }
+
+            if ((string) $item === $targetId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

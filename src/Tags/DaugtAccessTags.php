@@ -68,9 +68,52 @@ class DaugtAccessTags extends Tags
             ->all();
     }
 
+    /**
+     * {{ daugt_access:series_items series="ENTRY_ID" }}
+     * If series omitted, uses current entry id from context.
+     *
+     * Defaults: series_field = {series}, taxonomy = {series}_categories.
+     * Optional:
+     * {{ daugt_access:series_items collection="lessons" taxonomy="courses_categories" series_field="courses" }}
+     * {{ daugt_access:series_items category="breathwork" }}
+     */
+    public function seriesItems(): array
+    {
+        $user = auth()->user();
+        if (!$user) return [];
+
+        $seriesId = $this->resolveSeriesId();
+        if (!$seriesId) return [];
+
+        $collection = $this->params->get('collection') ?? 'series_items';
+        $taxonomy = $this->params->get('taxonomy');
+        $seriesField = $this->params->get('series_field');
+        $category = $this->params->get('category');
+
+        return $this->access->accessibleSeriesItems(
+            $user,
+            $seriesId,
+            $collection,
+            $seriesField,
+            $taxonomy,
+            null,
+            $category
+        );
+    }
+
     private function resolveTargetId(): ?string
     {
-        $target = $this->params->get('target')
+        return $this->resolveEntryId('target');
+    }
+
+    private function resolveSeriesId(): ?string
+    {
+        return $this->resolveEntryId('series');
+    }
+
+    private function resolveEntryId(string $paramKey): ?string
+    {
+        $target = $this->params->get($paramKey)
             ?? $this->context->get('id');
 
         if (!$target) return null;
