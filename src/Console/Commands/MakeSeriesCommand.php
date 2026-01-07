@@ -37,16 +37,25 @@ class MakeSeriesCommand extends Command
             required: true
         );
 
-        $taxonomyHandle = $this->promptHandle(
-            'Series categories taxonomy handle',
-            $this->normalizeHandle($seriesHandle.'_categories')
+        $useCategories = confirm(
+            label: 'Enable categories for series items?',
+            default: true
         );
-        $taxonomyTitle = text(
-            label: 'Series categories taxonomy title',
-            placeholder: 'Series Categories',
-            default: $this->titleFromHandle($taxonomyHandle),
-            required: true
-        );
+
+        $taxonomyHandle = null;
+        $taxonomyTitle = null;
+        if ($useCategories) {
+            $taxonomyHandle = $this->promptHandle(
+                'Series categories taxonomy handle',
+                $this->normalizeHandle($seriesHandle.'_categories')
+            );
+            $taxonomyTitle = text(
+                label: 'Series categories taxonomy title',
+                placeholder: 'Series Categories',
+                default: $this->titleFromHandle($taxonomyHandle),
+                required: true
+            );
+        }
 
         $allowIndividualItems = confirm(
             label: 'Allow individual entitlements for series items?',
@@ -70,11 +79,14 @@ class MakeSeriesCommand extends Command
             : "Collection [{$itemsHandle}] already exists."
         );
 
-        $taxonomy = $scaffolder->ensureTaxonomy($taxonomyHandle, $taxonomyTitle);
-        $this->line($taxonomy['created']
-            ? "Taxonomy [{$taxonomyHandle}] created."
-            : "Taxonomy [{$taxonomyHandle}] already exists."
-        );
+        $taxonomy = null;
+        if ($useCategories && $taxonomyHandle && $taxonomyTitle) {
+            $taxonomy = $scaffolder->ensureTaxonomy($taxonomyHandle, $taxonomyTitle);
+            $this->line($taxonomy['created']
+                ? "Taxonomy [{$taxonomyHandle}] created."
+                : "Taxonomy [{$taxonomyHandle}] already exists."
+            );
+        }
 
         if (! $items['collection']->dated()) {
             $this->warn('Series items collection is not dated; publish dates will not gate access.');
@@ -91,12 +103,14 @@ class MakeSeriesCommand extends Command
             : 'Series blueprint ensured.'
         );
 
-        $termFields = $this->taxonomyTermFields();
-        $termBlueprint = $scaffolder->ensureBlueprintForTaxonomy($taxonomy['taxonomy'], $termFields);
-        $this->line($termBlueprint['created']
-            ? 'Series categories blueprint created.'
-            : 'Series categories blueprint ensured.'
-        );
+        if ($taxonomy) {
+            $termFields = $this->taxonomyTermFields();
+            $termBlueprint = $scaffolder->ensureBlueprintForTaxonomy($taxonomy['taxonomy'], $termFields);
+            $this->line($termBlueprint['created']
+                ? 'Series categories blueprint created.'
+                : 'Series categories blueprint ensured.'
+            );
+        }
 
         $itemsFields = $this->itemsFields(
             $seriesHandle,
@@ -109,13 +123,15 @@ class MakeSeriesCommand extends Command
             : 'Series items blueprint ensured.'
         );
 
-        $taxonomyUpdated = $scaffolder->ensureCollectionTaxonomies(
-            $items['collection'],
-            [$taxonomyHandle]
-        );
+        if ($taxonomyHandle) {
+            $taxonomyUpdated = $scaffolder->ensureCollectionTaxonomies(
+                $items['collection'],
+                [$taxonomyHandle]
+            );
 
-        if ($taxonomyUpdated) {
-            $this->line("Series items collection taxonomies updated: {$taxonomyHandle}.");
+            if ($taxonomyUpdated) {
+                $this->line("Series items collection taxonomies updated: {$taxonomyHandle}.");
+            }
         }
 
         if (! $this->option('without-config')) {
@@ -190,7 +206,7 @@ class MakeSeriesCommand extends Command
     /**
      * @return array<string, array<string, mixed>>
      */
-    private function itemsFields(string $seriesHandle, string $taxonomyHandle, string $taxonomyTitle): array
+    private function itemsFields(string $seriesHandle, ?string $taxonomyHandle, ?string $taxonomyTitle): array
     {
         $fields = [
             'title' => [
@@ -206,18 +222,20 @@ class MakeSeriesCommand extends Command
             ],
         ];
 
-        $fields[$taxonomyHandle] = [
-            'type' => 'terms',
-            'display' => $taxonomyTitle,
-            'instructions' => 'Select a category when this item is part of a series.',
-            'taxonomies' => [$taxonomyHandle],
-            'mode' => 'select',
-            'create' => true,
-            'max_items' => 1,
-            'if' => [
-                $seriesHandle => 'not empty',
-            ],
-        ];
+        if ($taxonomyHandle && $taxonomyTitle) {
+            $fields[$taxonomyHandle] = [
+                'type' => 'terms',
+                'display' => $taxonomyTitle,
+                'instructions' => 'Select a category when this item is part of a series.',
+                'taxonomies' => [$taxonomyHandle],
+                'mode' => 'select',
+                'create' => true,
+                'max_items' => 1,
+                'if' => [
+                    $seriesHandle => 'not empty',
+                ],
+            ];
+        }
 
         $fields['summary'] = [
             'type' => 'textarea',
